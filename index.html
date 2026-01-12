@@ -569,10 +569,28 @@ class AudioEngine {
     }
 }
 
+// === 題庫定義 ===
+// Easy: ×1, ×2, ×5, ×10 組合
+const EASY_QUESTIONS = [];
+[1, 2, 5, 10].forEach(a => {
+    for (let b = 1; b <= 9; b++) {
+        EASY_QUESTIONS.push({ a, b, ans: a * b });
+        if (a !== b) EASY_QUESTIONS.push({ a: b, b: a, ans: a * b });
+    }
+});
+
+// Normal: 其餘組合 (3,4,6,7,8,9 互乘)
+const NORMAL_QUESTIONS = [];
+[3, 4, 6, 7, 8, 9].forEach(a => {
+    [3, 4, 6, 7, 8, 9].forEach(b => {
+        NORMAL_QUESTIONS.push({ a, b, ans: a * b });
+    });
+});
+
 const STAGES = [
-    { stage: 1, questions: 10, interval: 4000, speedMin: 0.6, speedMax: 0.9, multiplier: 1.0 },
-    { stage: 2, questions: 15, interval: 3000, speedMin: 0.9, speedMax: 1.2, multiplier: 1.5 },
-    { stage: 3, questions: 20, interval: 2000, speedMin: 1.2, speedMax: 1.5, multiplier: 2.0 }
+    { stage: 1, questions: 10, interval: 4000, speedMin: 0.6, speedMax: 0.9, multiplier: 1.0, easyRatio: 0.7 },
+    { stage: 2, questions: 15, interval: 3000, speedMin: 0.9, speedMax: 1.2, multiplier: 1.5, easyRatio: 0.4 },
+    { stage: 3, questions: 20, interval: 2000, speedMin: 1.2, speedMax: 1.5, multiplier: 2.0, easyRatio: 0.2 }
 ];
 
 const GAME_CONFIG = {
@@ -721,10 +739,10 @@ class Game {
     }
 
     generateQuestion() {
-        const isHard = Math.random() > 0.4;
-        const a = isHard ? Math.floor(Math.random() * 4) + 6 : Math.floor(Math.random() * 8) + 2;
-        const b = Math.floor(Math.random() * 8) + 2;
-        return { a, b, ans: a * b };
+        const stage = this.currentStage;
+        const pool = Math.random() < stage.easyRatio ? EASY_QUESTIONS : NORMAL_QUESTIONS;
+        const q = pool[Math.floor(Math.random() * pool.length)];
+        return { a: q.a, b: q.b, ans: q.ans };
     }
 
     handleGrounded(meteor) {
