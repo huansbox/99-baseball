@@ -336,7 +336,8 @@
         <div class="stars"></div>
         <div id="hud">
             <div class="hud-item"><span>⭐</span> <span class="score-val" id="score">0</span></div>
-            <div class="hud-item"><span>☄️</span> <span class="progress-val" id="progress">0/20</span></div>
+            <div class="hud-item"><span id="stage-label">STAGE 1</span></div>
+            <div class="hud-item"><span>☄️</span> <span class="progress-val" id="progress">0/10</span></div>
         </div>
         <div id="game-container"></div>
         <div id="defense-line"></div>
@@ -372,10 +373,19 @@
         <button class="btn-large" id="btn-start">開始任務</button>
     </div>
 
+    <div id="stage-screen" class="overlay hidden">
+        <h1 class="title" id="stage-title">STAGE 1</h1>
+        <p class="subtitle" id="stage-subtitle">10 題 | x1.0 分數</p>
+        <div style="font-size: 1.5rem; color: #94a3b8; margin-bottom: 30px;">
+            目前總分: <span id="stage-score" style="color:var(--gold-accent);">0</span>
+        </div>
+        <button class="btn-large" id="btn-stage-start">開始</button>
+    </div>
+
     <div id="end-screen" class="overlay hidden">
         <h1 class="title">任務完成</h1>
         <div style="font-size: 2.5rem; margin-bottom: 10px;">
-            得分: <span id="final-score" style="color:var(--gold-accent); text-shadow: 0 0 10px var(--gold-accent);">0</span>
+            總分: <span id="final-score" style="color:var(--gold-accent); text-shadow: 0 0 10px var(--gold-accent);">0</span>
         </div>
         <div style="margin-bottom: 40px; color: #cbd5e1; font-size: 1.5rem;">
             評級: <span id="final-rank" style="font-weight:900; font-size: 3rem; color:var(--primary-accent); margin-left: 10px;">A</span>
@@ -458,9 +468,13 @@ class AudioEngine {
     }
 }
 
+const STAGES = [
+    { stage: 1, questions: 10, interval: 4000, speedMin: 0.6, speedMax: 0.9, multiplier: 1.0 },
+    { stage: 2, questions: 15, interval: 3000, speedMin: 0.9, speedMax: 1.2, multiplier: 1.5 },
+    { stage: 3, questions: 20, interval: 2000, speedMin: 1.2, speedMax: 1.5, multiplier: 2.0 }
+];
+
 const GAME_CONFIG = {
-    totalQuestions: 20,
-    spawnIntervalBase: 2000,
     zones: { sky: 0.3, high: 0.6, low: 0.85 }
 };
 
@@ -468,8 +482,10 @@ class Game {
     constructor() {
         this.audio = new AudioEngine();
         this.activeMeteors = [];
-        this.score = 0;
-        this.questionsLeft = GAME_CONFIG.totalQuestions;
+        this.totalScore = 0;
+        this.stageScore = 0;
+        this.currentStageIndex = 0;
+        this.questionsLeft = 0;
         this.gameLoopId = null;
         this.lastSpawnTime = 0;
         this.isGameOver = false;
@@ -480,6 +496,7 @@ class Game {
         this.elCannon = document.getElementById('cannon');
         this.elScore = document.getElementById('score');
         this.elProgress = document.getElementById('progress');
+        this.elStageLabel = document.getElementById('stage-label');
         this.elInput = document.getElementById('input-display');
 
         this.inputBuffer = '';
@@ -487,18 +504,39 @@ class Game {
         this.isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     }
 
+    get currentStage() {
+        return STAGES[this.currentStageIndex];
+    }
+
     start() {
-        this.reset();
+        this.totalScore = 0;
+        this.currentStageIndex = 0;
+        this.showStageScreen();
+    }
+
+    showStageScreen() {
+        const stage = this.currentStage;
+        document.getElementById('stage-title').innerText = `STAGE ${stage.stage}`;
+        document.getElementById('stage-subtitle').innerText = `${stage.questions} 題 | x${stage.multiplier} 分數`;
+        document.getElementById('stage-score').innerText = this.totalScore;
+        document.getElementById('stage-screen').classList.remove('hidden');
+    }
+
+    startStage() {
+        document.getElementById('stage-screen').classList.add('hidden');
+        this.resetStage();
         this.gameLoopId = requestAnimationFrame((t) => this.loop(t));
     }
 
-    reset() {
+    resetStage() {
+        const stage = this.currentStage;
         this.activeMeteors = [];
-        this.score = 0;
-        this.questionsLeft = GAME_CONFIG.totalQuestions;
+        this.stageScore = 0;
+        this.questionsLeft = stage.questions;
         this.isGameOver = false;
         this.inputBuffer = '';
         this.lastMeteorX = null;
+        this.lastSpawnTime = 0;
         this.elContainer.innerHTML = '';
         this.updateHUD();
         this.updateInputDisplay();
@@ -508,8 +546,9 @@ class Game {
     loop(timestamp) {
         if (this.isGameOver || this.isPaused) return;
 
+        const stage = this.currentStage;
         if (this.questionsLeft > 0 &&
-            timestamp - this.lastSpawnTime > GAME_CONFIG.spawnIntervalBase) {
+            timestamp - this.lastSpawnTime > stage.interval) {
             this.spawnMeteor();
             this.lastSpawnTime = timestamp;
         }
@@ -527,7 +566,7 @@ class Game {
         });
 
         if (this.questionsLeft === 0 && this.activeMeteors.length === 0) {
-            this.endGame();
+            this.endStage();
             return;
         }
         this.gameLoopId = requestAnimationFrame((t) => this.loop(t));
@@ -536,6 +575,7 @@ class Game {
     spawnMeteor() {
         const q = this.generateQuestion();
         const shapeIdx = Math.floor(Math.random() * METEOR_SHAPES.length);
+        const stage = this.currentStage;
 
         let x;
         if (this.lastMeteorX === null) {
@@ -550,12 +590,13 @@ class Game {
         }
         this.lastMeteorX = x;
 
+        const speedRange = stage.speedMax - stage.speedMin;
         const meteor = {
             id: Date.now(),
             q: q,
             y: -90,
             x: x,
-            speed: 1.0 + (Math.random() * 0.5),
+            speed: stage.speedMin + (Math.random() * speedRange),
             isGrounded: false,
             destroyed: false,
             shape: METEOR_SHAPES[shapeIdx],
@@ -682,22 +723,25 @@ class Game {
 
         const gameH = document.getElementById('game-layer').offsetHeight;
         const ratio = meteor.y / gameH;
-        let points = 0;
+        const stage = this.currentStage;
+        let basePoints = 0;
         let zone = 'ground';
 
         if (meteor.isGrounded) {
-            points = 40; zone = 'ground';
+            basePoints = 40; zone = 'ground';
         } else if (ratio < GAME_CONFIG.zones.sky) {
-            points = 100; zone = 'sky';
+            basePoints = 100; zone = 'sky';
         } else if (ratio < GAME_CONFIG.zones.high) {
-            points = 80; zone = 'high';
+            basePoints = 80; zone = 'high';
         } else {
-            points = 60; zone = 'low';
+            basePoints = 60; zone = 'low';
         }
 
-        this.score += points;
+        const points = Math.round(basePoints * stage.multiplier);
+        this.stageScore += points;
+        this.totalScore += points;
         this.updateHUD();
-        this.createExplosion(meteor, zone);
+        this.createExplosion(meteor, zone, points);
         this.createDebris(meteor);
         meteor.el.remove();
         this.activeMeteors = this.activeMeteors.filter(m => m !== meteor);
@@ -743,41 +787,54 @@ class Game {
         setTimeout(() => display.classList.remove('error'), 300);
     }
 
-    createExplosion(meteor, zone) {
+    createExplosion(meteor, zone, points) {
         const text = document.createElement('div');
         text.className = 'pop-text';
         text.style.left = `${meteor.x}%`;
         text.style.top = `${meteor.y}px`;
 
-        let msg = '';
-        if(zone === 'sky') { msg = 'PERFECT! +100'; text.style.color = '#fbbf24'; text.style.fontSize='3rem'; }
-        else if(zone === 'high') { msg = 'GREAT! +80'; text.style.color = '#38bdf8'; }
-        else if(zone === 'low') { msg = 'GOOD +60'; text.style.color = '#fff'; text.style.fontSize='1.8rem'; }
-        else { msg = 'HIT +40'; text.style.color = '#94a3b8'; text.style.fontSize='1.5rem'; }
+        let label = '';
+        if(zone === 'sky') { label = 'PERFECT!'; text.style.color = '#fbbf24'; text.style.fontSize='3rem'; }
+        else if(zone === 'high') { label = 'GREAT!'; text.style.color = '#38bdf8'; }
+        else if(zone === 'low') { label = 'GOOD'; text.style.color = '#fff'; text.style.fontSize='1.8rem'; }
+        else { label = 'HIT'; text.style.color = '#94a3b8'; text.style.fontSize='1.5rem'; }
 
-        text.innerText = msg;
+        text.innerText = `${label} +${points}`;
         this.elContainer.appendChild(text);
         setTimeout(() => text.remove(), 800);
         this.audio.playExplosion(zone === 'sky' ? 'huge' : 'small');
     }
 
     updateHUD() {
-        this.elScore.innerText = this.score;
-        this.elProgress.innerText = `${GAME_CONFIG.totalQuestions - this.questionsLeft}/${GAME_CONFIG.totalQuestions}`;
+        const stage = this.currentStage;
+        this.elScore.innerText = this.totalScore;
+        this.elStageLabel.innerText = `STAGE ${stage.stage}`;
+        this.elProgress.innerText = `${stage.questions - this.questionsLeft}/${stage.questions}`;
     }
 
     updateInputDisplay() {
         this.elInput.innerText = this.inputBuffer;
     }
 
-    endGame() {
+    endStage() {
         this.isGameOver = true;
         cancelAnimationFrame(this.gameLoopId);
+
+        if (this.currentStageIndex < STAGES.length - 1) {
+            this.currentStageIndex++;
+            this.showStageScreen();
+        } else {
+            this.endGame();
+        }
+    }
+
+    endGame() {
         document.getElementById('end-screen').classList.remove('hidden');
-        document.getElementById('final-score').innerText = this.score;
+        document.getElementById('final-score').innerText = this.totalScore;
+
+        const maxScore = STAGES.reduce((sum, s) => sum + s.questions * 100 * s.multiplier, 0);
+        const ratio = this.totalScore / maxScore;
         let rank = 'C';
-        const maxScore = GAME_CONFIG.totalQuestions * 100;
-        const ratio = this.score / maxScore;
         if (ratio > 0.9) rank = 'S';
         else if (ratio > 0.8) rank = 'A';
         else if (ratio > 0.6) rank = 'B';
@@ -799,6 +856,10 @@ document.getElementById('btn-start').addEventListener('click', () => {
     document.getElementById('start-screen').classList.add('hidden');
     if(game.audio.ctx.state === 'suspended') game.audio.ctx.resume();
     game.start();
+});
+document.getElementById('btn-stage-start').addEventListener('click', () => {
+    if(game.audio.ctx.state === 'suspended') game.audio.ctx.resume();
+    game.startStage();
 });
 document.getElementById('btn-restart').addEventListener('click', () => {
     document.getElementById('end-screen').classList.add('hidden');
