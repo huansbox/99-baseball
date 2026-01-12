@@ -321,11 +321,58 @@
             background: linear-gradient(to right, transparent, rgba(255,255,255,0.3), transparent);
             transform: rotate(45deg); animation: sheen 3s infinite;
         }
+        .btn-large.btn-secondary {
+            background: linear-gradient(135deg, #475569, #334155);
+            box-shadow: 0 10px 20px rgba(51, 65, 85, 0.4), inset 0 2px 0 rgba(255,255,255,0.1);
+            padding: 20px 40px; font-size: 1.4rem;
+        }
         @keyframes sheen {
             0% { transform: translateX(-100%) rotate(45deg); }
             100% { transform: translateX(100%) rotate(45deg); }
         }
         .hidden { display: none !important; }
+
+        /* 高分顯示 */
+        .high-score-display {
+            font-size: 1.3rem; color: #94a3b8; margin-bottom: 10px;
+        }
+        .high-score-display span { color: var(--gold-accent); font-weight: 700; }
+
+        /* 排名徽章 */
+        .rank-badge {
+            font-size: 2rem; font-weight: 900; color: var(--gold-accent);
+            text-shadow: 0 0 20px var(--gold-accent);
+            animation: pulse 1s ease-in-out infinite;
+            margin-bottom: 15px;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        /* 排行榜列表 */
+        .leaderboard-list {
+            width: 90%; max-width: 400px;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            border-radius: 12px; padding: 15px;
+            margin-bottom: 30px; max-height: 50vh; overflow-y: auto;
+        }
+        .leaderboard-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 12px 10px; border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .leaderboard-item:last-child { border-bottom: none; }
+        .lb-rank {
+            width: 40px; height: 40px; display: flex; justify-content: center; align-items: center;
+            background: rgba(56, 189, 248, 0.2); border-radius: 50%;
+            font-weight: 900; font-size: 1.2rem; color: var(--primary-accent);
+        }
+        .leaderboard-item:nth-child(1) .lb-rank { background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #1e1b4b; }
+        .leaderboard-item:nth-child(2) .lb-rank { background: linear-gradient(135deg, #94a3b8, #64748b); color: #1e1b4b; }
+        .leaderboard-item:nth-child(3) .lb-rank { background: linear-gradient(135deg, #f97316, #ea580c); color: #1e1b4b; }
+        .lb-score { font-size: 1.5rem; font-weight: 700; color: #fff; flex: 1; text-align: center; }
+        .lb-date { font-size: 0.9rem; color: #64748b; }
 
     </style>
 </head>
@@ -370,7 +417,11 @@
     <div id="start-screen" class="overlay">
         <h1 class="title">隕石數學防衛隊</h1>
         <p class="subtitle">TARGET: METEOR // WEAPON: MATH</p>
-        <button class="btn-large" id="btn-start">開始任務</button>
+        <div class="high-score-display">最高分: <span id="high-score">0</span></div>
+        <div style="display: flex; gap: 15px; margin-top: 20px;">
+            <button class="btn-large" id="btn-start">開始任務</button>
+            <button class="btn-large btn-secondary" id="btn-leaderboard">排行榜</button>
+        </div>
     </div>
 
     <div id="stage-screen" class="overlay hidden">
@@ -384,21 +435,71 @@
 
     <div id="end-screen" class="overlay hidden">
         <h1 class="title">任務完成</h1>
+        <div id="rank-display" class="rank-badge hidden">第 1 名！</div>
         <div style="font-size: 2.5rem; margin-bottom: 10px;">
             總分: <span id="final-score" style="color:var(--gold-accent); text-shadow: 0 0 10px var(--gold-accent);">0</span>
         </div>
-        <div style="margin-bottom: 40px; color: #cbd5e1; font-size: 1.5rem;">
+        <div style="margin-bottom: 30px; color: #cbd5e1; font-size: 1.5rem;">
             評級: <span id="final-rank" style="font-weight:900; font-size: 3rem; color:var(--primary-accent); margin-left: 10px;">A</span>
         </div>
-        <button class="btn-large" id="btn-restart">再次挑戰</button>
+        <div style="display: flex; gap: 15px;">
+            <button class="btn-large" id="btn-restart">再次挑戰</button>
+            <button class="btn-large btn-secondary" id="btn-end-leaderboard">排行榜</button>
+        </div>
+    </div>
+
+    <div id="leaderboard-screen" class="overlay hidden">
+        <h1 class="title" style="font-size: 2.5rem;">排行榜</h1>
+        <div id="leaderboard-list" class="leaderboard-list"></div>
+        <button class="btn-large" id="btn-lb-back">返回</button>
     </div>
 </div>
 
 <script>
 /**
  * 隕石數學防衛隊 - 核心引擎
- * v3.8 Absolute Positioning Layout Fixed
+ * v3.9 High Score Records
  */
+
+// === 高分記錄管理 ===
+class RecordsManager {
+    constructor() {
+        this.storageKey = 'meteor-math-records';
+        this.maxRecords = 10;
+    }
+
+    getRecords() {
+        const records = localStorage.getItem(this.storageKey);
+        return records ? JSON.parse(records) : [];
+    }
+
+    saveRecord(score) {
+        const records = this.getRecords();
+        const newRecord = {
+            id: Date.now(),
+            score: score,
+            date: new Date().toISOString().slice(0, 10)
+        };
+        records.push(newRecord);
+        records.sort((a, b) => b.score - a.score);
+        if (records.length > this.maxRecords) {
+            records.length = this.maxRecords;
+        }
+        localStorage.setItem(this.storageKey, JSON.stringify(records));
+        return this.getRank(newRecord.id);
+    }
+
+    getRank(recordId) {
+        const records = this.getRecords();
+        const index = records.findIndex(r => r.id === recordId);
+        return index >= 0 ? index + 1 : null;
+    }
+
+    getHighScore() {
+        const records = this.getRecords();
+        return records.length > 0 ? records[0].score : 0;
+    }
+}
 
 const METEOR_SHAPES = [
     '50%',
@@ -481,6 +582,7 @@ const GAME_CONFIG = {
 class Game {
     constructor() {
         this.audio = new AudioEngine();
+        this.records = new RecordsManager();
         this.activeMeteors = [];
         this.totalScore = 0;
         this.stageScore = 0;
@@ -839,6 +941,38 @@ class Game {
         else if (ratio > 0.8) rank = 'A';
         else if (ratio > 0.6) rank = 'B';
         document.getElementById('final-rank').innerText = rank;
+
+        // 保存記錄並顯示排名
+        const position = this.records.saveRecord(this.totalScore);
+        const rankDisplay = document.getElementById('rank-display');
+        if (position && position <= 5) {
+            rankDisplay.innerText = `第 ${position} 名！`;
+            rankDisplay.classList.remove('hidden');
+        } else {
+            rankDisplay.classList.add('hidden');
+        }
+    }
+
+    showLeaderboard() {
+        const records = this.records.getRecords();
+        const listEl = document.getElementById('leaderboard-list');
+        listEl.innerHTML = '';
+
+        if (records.length === 0) {
+            listEl.innerHTML = '<div style="color:#94a3b8; padding:20px;">尚無記錄</div>';
+        } else {
+            records.forEach((record, index) => {
+                const item = document.createElement('div');
+                item.className = 'leaderboard-item';
+                item.innerHTML = `
+                    <span class="lb-rank">${index + 1}</span>
+                    <span class="lb-score">${record.score}</span>
+                    <span class="lb-date">${record.date}</span>
+                `;
+                listEl.appendChild(item);
+            });
+        }
+        document.getElementById('leaderboard-screen').classList.remove('hidden');
     }
 }
 
@@ -865,10 +999,22 @@ document.getElementById('btn-restart').addEventListener('click', () => {
     document.getElementById('end-screen').classList.add('hidden');
     game.start();
 });
+document.getElementById('btn-leaderboard').addEventListener('click', () => {
+    game.showLeaderboard();
+});
+document.getElementById('btn-end-leaderboard').addEventListener('click', () => {
+    game.showLeaderboard();
+});
+document.getElementById('btn-lb-back').addEventListener('click', () => {
+    document.getElementById('leaderboard-screen').classList.add('hidden');
+});
 document.addEventListener('keydown', (e) => {
     if(e.key >= '0' && e.key <= '9') game.handleInput(e.key);
     if(e.key === 'Backspace') game.handleDelete();
 });
+
+// 初始化時顯示最高分
+document.getElementById('high-score').innerText = game.records.getHighScore();
 </script>
 </body>
 </html>
