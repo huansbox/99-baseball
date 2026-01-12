@@ -265,9 +265,10 @@
 
         #keypad {
             flex: 1; display: grid;
-            grid-template-areas: "n1 n2 n3 del" "n4 n5 n6 del" "n7 n8 n9 ok" "empty n0 empty ok";
-            grid-template-columns: 1fr 1fr 1fr 1fr; grid-template-rows: 1fr 1fr 1fr 1fr; gap: 10px;
-            min-height: 0; /* 允許 Grid 在 Flex 容器中正確縮放 */
+            grid-template-columns: repeat(6, 1fr);
+            grid-template-rows: 1fr 1fr;
+            gap: 8px;
+            min-height: 0;
         }
         .btn {
             background: linear-gradient(145deg, #1e293b, #0f172a);
@@ -285,13 +286,8 @@
             transform: translateY(4px); box-shadow: 0 0 0 #020617, inset 0 2px 5px rgba(0,0,0,0.5); background: #0f172a;
         }
         .btn-num { color: #fff; }
-        .btn-del { grid-area: del; background: linear-gradient(145deg, #451a03, #450a0a); color: var(--danger-accent); border-color: rgba(244, 63, 94, 0.3); }
-        .btn-ok { grid-area: ok; background: linear-gradient(145deg, #0c4a6e, #082f49); color: var(--primary-accent); border-color: rgba(56, 189, 248, 0.3); font-size: 1.2rem; }
-
-        .n1 { grid-area: n1; } .n2 { grid-area: n2; } .n3 { grid-area: n3; }
-        .n4 { grid-area: n4; } .n5 { grid-area: n5; } .n6 { grid-area: n6; }
-        .n7 { grid-area: n7; } .n8 { grid-area: n8; } .n9 { grid-area: n9; }
-        .n0 { grid-area: n0; }
+        .btn-del { background: linear-gradient(145deg, #451a03, #450a0a); color: var(--danger-accent); border-color: rgba(244, 63, 94, 0.3); }
+        .btn-clear { background: linear-gradient(145deg, #0c4a6e, #082f49); color: var(--primary-accent); border-color: rgba(56, 189, 248, 0.3); }
 
         /* === 覆蓋層 === */
         .overlay {
@@ -354,18 +350,18 @@
     <div id="control-layer">
         <div id="input-display"></div>
         <div id="keypad">
-            <button class="btn btn-num n1" data-val="1">1</button>
-            <button class="btn btn-num n2" data-val="2">2</button>
-            <button class="btn btn-num n3" data-val="3">3</button>
-            <button class="btn btn-num n4" data-val="4">4</button>
-            <button class="btn btn-num n5" data-val="5">5</button>
-            <button class="btn btn-num n6" data-val="6">6</button>
-            <button class="btn btn-num n7" data-val="7">7</button>
-            <button class="btn btn-num n8" data-val="8">8</button>
-            <button class="btn btn-num n9" data-val="9">9</button>
-            <button class="btn btn-num n0" data-val="0">0</button>
-            <button class="btn btn-del" id="btn-del">DEL</button>
-            <button class="btn btn-ok" id="btn-ok">II</button>
+            <button class="btn btn-num" data-val="1">1</button>
+            <button class="btn btn-num" data-val="2">2</button>
+            <button class="btn btn-num" data-val="3">3</button>
+            <button class="btn btn-num" data-val="4">4</button>
+            <button class="btn btn-num" data-val="5">5</button>
+            <button class="btn btn-del" id="btn-del">刪</button>
+            <button class="btn btn-num" data-val="6">6</button>
+            <button class="btn btn-num" data-val="7">7</button>
+            <button class="btn btn-num" data-val="8">8</button>
+            <button class="btn btn-num" data-val="9">9</button>
+            <button class="btn btn-num" data-val="0">0</button>
+            <button class="btn btn-clear" id="btn-clear">除</button>
         </div>
     </div>
 
@@ -612,6 +608,12 @@ class Game {
         this.updateInputDisplay();
     }
 
+    handleClear() {
+        this.inputBuffer = '';
+        if (this.inputTimer) clearTimeout(this.inputTimer);
+        this.updateInputDisplay();
+    }
+
     submitAnswer() {
         if (!this.inputBuffer) return;
         const val = parseInt(this.inputBuffer);
@@ -793,6 +795,10 @@ document.querySelectorAll('.btn-num').forEach(btn => {
 const btnDel = document.getElementById('btn-del');
 ['click', 'touchstart'].forEach(evt => btnDel.addEventListener(evt, (e) => {
     e.preventDefault(); game.handleDelete();
+}));
+const btnClear = document.getElementById('btn-clear');
+['click', 'touchstart'].forEach(evt => btnClear.addEventListener(evt, (e) => {
+    e.preventDefault(); game.handleClear();
 }));
 document.getElementById('btn-start').addEventListener('click', () => {
     document.getElementById('start-screen').classList.add('hidden');
