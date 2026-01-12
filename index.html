@@ -461,7 +461,6 @@ class AudioEngine {
 const GAME_CONFIG = {
     totalQuestions: 20,
     spawnIntervalBase: 2000,
-    fallSpeedBase: 0.5,
     zones: { sky: 0.3, high: 0.6, low: 0.85 }
 };
 
@@ -510,8 +509,7 @@ class Game {
         if (this.isGameOver || this.isPaused) return;
 
         if (this.questionsLeft > 0 &&
-            timestamp - this.lastSpawnTime > GAME_CONFIG.spawnIntervalBase &&
-            this.activeMeteors.filter(m => !m.destroyed).length < 2) {
+            timestamp - this.lastSpawnTime > GAME_CONFIG.spawnIntervalBase) {
             this.spawnMeteor();
             this.lastSpawnTime = timestamp;
         }
@@ -557,7 +555,7 @@ class Game {
             q: q,
             y: -90,
             x: x,
-            speed: GAME_CONFIG.fallSpeedBase + (Math.random() * 0.5),
+            speed: 1.0 + (Math.random() * 0.5),
             isGrounded: false,
             destroyed: false,
             shape: METEOR_SHAPES[shapeIdx],
