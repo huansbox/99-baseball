@@ -1051,7 +1051,7 @@ class Game {
         if (this.inputBuffer.length < 2) this.inputBuffer += digit;
         this.updateInputDisplay();
         const len = this.inputBuffer.length;
-        const delay = this.isTouch ? (len === 1 ? 800 : 400) : (len === 1 ? 600 : 300);
+        const delay = this.isTouch ? (len === 1 ? 1000 : 400) : (len === 1 ? 600 : 300);
         this.inputTimer = setTimeout(() => { this.submitAnswer(); }, delay);
     }
 
