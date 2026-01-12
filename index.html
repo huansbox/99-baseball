@@ -888,8 +888,11 @@ class Game {
         if (this.isGameOver || this.isPaused) return;
 
         const stage = this.currentStage;
+        // 動態生成間隔：每 3 顆未答隕石 +1 秒
+        const activeCount = this.activeMeteors.filter(m => !m.destroyed && !m.isGrounded).length;
+        const dynamicInterval = stage.interval + Math.floor(activeCount / 3) * 1000;
         if (this.questionsLeft > 0 &&
-            timestamp - this.lastSpawnTime > stage.interval) {
+            timestamp - this.lastSpawnTime > dynamicInterval) {
             this.spawnMeteor();
             this.lastSpawnTime = timestamp;
         }
